@@ -9,7 +9,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const OFFICIAL_EMAIL = process.env.OFFICIAL_EMAIL;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 
 function generateFibonacci(n) {
@@ -54,27 +54,38 @@ function calculateLCM(arr) {
   return arr.reduce((acc, num) => lcm(acc, num));
 }
 
+
 async function getAIResponse(question) {
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const response = await axios.post(url, {
-      contents: [{
-        parts: [{
-          text: `Answer this question in exactly ONE WORD only, no punctuation, no explanation: ${question}`
-        }]
-      }]
-    });
+    const response = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'user',
+            content: `Answer this question in exactly ONE WORD only. No punctuation, no explanation, just one word: ${question}`
+          }
+        ],
+        max_tokens: 10,
+        temperature: 0.1
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-    const answer = response.data.candidates[0].content.parts[0].text.trim();
-   
-    return answer.split(/\\s+/)[0].replace(/[^\\w]/g, '');
+    const answer = response.data.choices[0].message.content.trim();
+    return answer.split(/\s+/)[0].replace(/[^\w]/g, '');
+    
   } catch (error) {
-    console.error('AI Error:', error.message);
+    console.error('AI Error:', error.response?.data || error.message);
     throw new Error('AI service unavailable');
   }
 }
-
 
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -83,12 +94,10 @@ app.get('/health', (req, res) => {
   });
 });
 
-
 app.post('/bfhl', async (req, res) => {
   try {
     const body = req.body;
 
-   
     const keys = Object.keys(body);
     if (keys.length !== 1) {
       return res.status(400).json({
@@ -172,7 +181,6 @@ app.post('/bfhl', async (req, res) => {
     });
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
